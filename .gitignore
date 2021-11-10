@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Editor configs
+.vscode/
+.idea/
+
+# Binaries
+cp
