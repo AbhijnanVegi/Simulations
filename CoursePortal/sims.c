@@ -12,8 +12,9 @@ void *course_sim(void *course_arg)
 {
     course *c = (course *)course_arg;
     int lab_no = 0, ta_no = 0;
-    while (!c->stu_wait_c);
 search:;
+    // Wait for students to register for course
+    while (!c->stu_wait_c);
     // Search for TAs
     bool has_tas = true;
     while (has_tas)
@@ -67,17 +68,19 @@ found:;
     printf("Course %s has been allocated %d seats\n", c->name, seats_allocated);
 
     // Wakeup seats_allocated students
+    pthread_mutex_lock(&c->course_lock);
     for (int i = 0; i < seats_allocated;i++)
     {
         pthread_cond_signal(&c->course_cond);
     }
+    pthread_mutex_unlock(&c->course_lock);
 
     // Wait for available students to join
-    while (c->stu_wait_c != seats_allocated && c->stu_wait_c != c->stu_wait_c);
+    while (c->tut_wait_c != seats_allocated && c->stu_wait_c != 0);
 
     // Run tutorial
     pthread_mutex_lock(&c->course_lock);
-    printf("Tutorial has started for Course %s with %d seats filled out of %d\n", c->name, seats_allocated > c->stu_wait_c?c->stu_wait_c:seats_allocated, seats_allocated);
+    printf("Tutorial has started for Course %s with %d seats filled out of %d\n", c->name, c->tut_wait_c, seats_allocated);
     pthread_mutex_unlock(&c->course_lock);
     sleep(1);
 
@@ -132,13 +135,13 @@ void* student_sim(void* stu_arg)
         // Wait for tutorial
         pthread_mutex_lock(&c->tut_lock);
         c->tut_wait_c++;
-        pthread_cond_wait(&c->tut_cond, &c->tut_lock);
-        pthread_mutex_unlock(&c->tut_lock);
-
         // Unregister student
         pthread_mutex_lock(&c->course_lock);
         c->stu_wait_c--;
         pthread_mutex_unlock(&c->course_lock);
+        pthread_cond_wait(&c->tut_cond, &c->tut_lock);
+        pthread_mutex_unlock(&c->tut_lock);
+
 
         double prob = c->interest * stu->calibre;
         if (rand() % 100 < prob * 100)
