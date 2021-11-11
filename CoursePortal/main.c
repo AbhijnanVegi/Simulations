@@ -3,6 +3,7 @@
 
 #include "globals.h"
 #include "init.h"
+#include "sims.h"
 
 lab *ilabs;
 course *courses;
@@ -11,6 +12,8 @@ student *students;
 int lab_c;
 int course_c;
 int student_c;
+
+pthread_mutex_t stu_lock;
 
 void init_glob()
 {
@@ -37,13 +40,15 @@ void init_glob()
     for (int i = 0; i < student_c; i++)
     {
         double calibre;
-        int pref1, pref2, pref3;
+        int *prefs = (int *)malloc(sizeof(int) * 3);
         int apply_time;
-        scanf("%lf %d %d %d %d", &calibre, &pref1, &pref2, &pref3, &apply_time);
-        init_student(&students[i], calibre, pref1, pref2, pref3, apply_time);
+        scanf("%lf %d %d %d %d", &calibre, &prefs[0], &prefs[1], &prefs[2], &apply_time);
+        init_student(&students[i], calibre, prefs, apply_time);
     }
 
-    for (int i = 0; i < lab_c;i++)
+    pthread_mutex_init(&stu_lock, NULL);
+
+    for (int i = 0; i < lab_c; i++)
     {
         char name[128];
         int ta_c, ta_times;
@@ -53,9 +58,40 @@ void init_glob()
     }
 }
 
+void start_sim()
+{
+    pthread_t stu_threads[student_c];
+    // Start students sims
+    for (int i = 0; i < student_c; i++)
+    {
+        pthread_create(&stu_threads[i], NULL, student_sim, &students[i]);
+    }
+    
+    pthread_t course_threads[course_c];
+    // Start course sims
+    for (int i = 0; i < course_c; i++)
+    {
+        pthread_create(&course_threads[i], NULL, course_sim, &courses[i]);
+    }
+
+    // Wait for all threads to finish
+    for (int i = 0; i < student_c; i++)
+    {
+        pthread_join(stu_threads[i], NULL);
+    }
+    printf("All students have exited the simulation\n");
+    for (int i = 0; i < course_c; i++)
+    {
+        pthread_cancel(course_threads[i]);
+    }
+}
+
 int main()
 {
     init_glob();
-    printf("Globals initialised\n");
+    printf("🧑‍🔬 Starting simulation\n");
+    start_sim();
+    printf("🕵️ Simulation complete\n");
+
     return 0;
 }

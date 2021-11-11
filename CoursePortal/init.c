@@ -17,8 +17,9 @@ void init_lab(struct lab *lab, char*name, int ta_c, int ta_times)
     lab->name = strdup(name);
     lab->ta_c = ta_c;
     lab->ta_times = ta_times;
+    lab->ta_avail_c = ta_c;
 
-    sem_init(&lab->ta_avail, 0, ta_c);
+    pthread_mutex_init(&lab->lab_lock, NULL);
     
     lab->tas = malloc(sizeof(struct ta) * ta_c);
     for (int i = 0; i < ta_c; i++)
@@ -41,23 +42,24 @@ void init_course(
     course->max_slot_c = max_slot_c;
     course->lab_c = lab_c;
     course->labs = labs;
+    course->stu_wait_c = 0;
+    course->tut_wait_c = 0;
     course->withdrawn = false;
 
-    sem_init(&course->course_avail, 0, 0);
+    pthread_mutex_init(&course->course_lock, NULL);
+    pthread_cond_init(&course->course_cond, NULL);
+    pthread_mutex_init(&course->tut_lock, NULL);
+    pthread_cond_init(&course->tut_cond, NULL);
 }
 
 void init_student(
     student *student,
     double calibre,
-    int pref1,
-    int pref2,
-    int pref3,
+    int* prefs,
     int apply_time
 )
 {
     student->calibre = calibre;
-    student->pref1 = pref1;
-    student->pref2 = pref2;
-    student->pref3 = pref3;
+    student->prefs = prefs;
     student->apply_time = apply_time;
 }

@@ -15,9 +15,7 @@ void init_course(
 void init_student(
     student *student,
     double calibre,
-    int pref1,
-    int pref2,
-    int pref3,
+    int* prefs,
     int apply_time
 );
 
