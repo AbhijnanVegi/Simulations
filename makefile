@@ -7,7 +7,14 @@ CP_FILES= \
 
 CFLAGS= -g -lpthread 
 
+all: cp
+
 cp:  $(CP_FILES)
 	@echo "🚧 Building simulator for course portal"
 	gcc -o cp $(CP_FILES) $(CFLAGS)
+	@echo "🎉 Built successfully. Executable: cp"
+
+cpdebug: $(CP_FILES)
+	@echo "🚧 Building simulator for course portal"
+	gcc -o cp $(CP_FILES) $(CFLAGS) -D DEBUG
 	@echo "🎉 Built successfully. Executable: cp"
