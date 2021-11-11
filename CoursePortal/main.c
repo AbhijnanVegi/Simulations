@@ -89,9 +89,9 @@ void start_sim()
 int main()
 {
     init_glob();
-    printf("🧑‍🔬 Starting simulation\n");
+    printf("🚀 Starting simulation\n");
     start_sim();
-    printf("🕵️ Simulation complete\n");
+    printf("🎊 Simulation complete\n");
 
     return 0;
 }
