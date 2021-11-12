@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "globals.h"
 #include "init.h"
@@ -88,7 +89,7 @@ void start_sim()
 
 int main()
 {
-    setbuf(stdout, NULL);
+    srand(time(0));
     init_glob();
     printf("🚀 Starting simulation\n");
     start_sim();
