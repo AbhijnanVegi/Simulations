@@ -7,7 +7,13 @@ CP_FILES= \
 
 CFLAGS= -g -lpthread 
 
-all: cp
+STD=Stadium
+STD_FILES= \
+	$(STD)/main.c\
+	$(STD)/sims.c\
+
+
+all: cp std 
 
 cp:  $(CP_FILES)
 	@echo "🚧 Building simulator for course portal"
@@ -18,3 +24,8 @@ cpdebug: $(CP_FILES)
 	@echo "🚧 Building simulator for course portal"
 	gcc -o cp $(CP_FILES) $(CFLAGS) -D DEBUG
 	@echo "🎉 Built successfully. Executable: cp"
+
+std: $(STD_FILES)
+	@echo "🚧 Building simulator for stadium"
+	gcc -o std $(STD_FILES) $(CFLAGS)
+	@echo "🎉 Built successfully. Executable: std"
