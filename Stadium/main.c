@@ -30,7 +30,7 @@ void match_sim(void)
     double gprob;
     for (int i = 0; i < chances;i++)
     {
-        scanf("%c %d %lf", &gteam, &gtime, &gprob);
+        scanf("\n%c %d %lf", &gteam, &gtime, &gprob);
         sleep(gtime-ctime);
         ctime = gtime;
         if (rand() % 100 < gprob * 100)
@@ -81,7 +81,7 @@ int main()
         }
         pthread_create(&grp_threads[i], NULL, grp_sim, g);
     }
-    // match_sim();
+    match_sim();
     for (int i = 0; i < num_grps; i++)
     {
         pthread_join(grp_threads[i], NULL);

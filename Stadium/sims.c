@@ -47,58 +47,22 @@ void signal_cat(int type)
     pthread_cond_signal(&seat_cats[N_CAT]);
 }
 
-void *seat_wait(void* sleep_arg)
-{
-    sleep_args* sp = (sleep_args*) sleep_arg;
-    sleep(sp->time);
-    pthread_mutex_lock(&seat_lock);
-    pthread_mutex_lock(sp->exec_lock);
-    pthread_cancel(sp->caller);
-    pthread_mutex_unlock(sp->exec_lock);
-    pthread_mutex_unlock(&seat_lock);
-    printf(YELLOW"%s could not get a seat\n"RESET, sp->spec->name);
-    printf(CYAN"%s is waiting for their friends at exit\n"RESET, sp->spec->name);
-}
-
-void *spec_wait(void * sleep_arg)
-{
-    sleep_args* sp = (sleep_args*) sleep_arg;
-    sleep(sp->time);
-    pthread_mutex_lock(&scoreboard_lock);
-    pthread_mutex_lock(sp->exec_lock);
-    pthread_cancel(sp->caller);
-    pthread_mutex_unlock(sp->exec_lock);
-    pthread_mutex_unlock(&scoreboard_lock);
-    pthread_mutex_lock(&seat_lock);
-    seats[sp->spec->seat_type]++;
-    signal_cat(sp->spec->seat_type);
-    pthread_mutex_unlock(&seat_lock);
-    printf(YELLOW"%s watched the match for %d seconds and is leaving\n"RESET, sp->spec->name, sp->time);
-    printf(CYAN"%s is waiting for their friends at exit\n"RESET, sp->spec->name);
-}
 
 void *spec_sim(void* spec_arg)
 {
     spec* s = spec_arg;
-
-    pthread_mutex_t exec_lock;
-    pthread_mutex_init(&exec_lock, NULL);
+    int rt;
 
     sleep(s->entry_time);
     printf(BLUE "%s has reached the stadium\n" RESET, s->name);
-    
-    // Setup thread for sleeping
-    sleep_args* sleep_arg = malloc(sizeof(sleep_args));
-    sleep_arg->time = s->patience;
-    sleep_arg->caller = pthread_self();
-    sleep_arg->exec_lock = &exec_lock;
-    sleep_arg->spec = s;
-    pthread_t sleep_thread;
-    pthread_create(&sleep_thread, NULL, seat_wait, sleep_arg);
+
+    // Set time to end waiting
+    struct timespec end_wait;
+    end_wait.tv_sec = time(NULL) + s->patience;
+    end_wait.tv_nsec = 0;
 
     // Wait for seat
     pthread_mutex_lock(&seat_lock);
-    pthread_mutex_lock(&exec_lock);
     while (true)
     {
 
@@ -144,31 +108,28 @@ void *spec_sim(void* spec_arg)
                 break;
             }
         }
-        pthread_mutex_unlock(&exec_lock);
-        pthread_cond_wait(&seat_cats[s->type], &seat_lock);
-        pthread_mutex_lock(&exec_lock);
+        rt = pthread_cond_timedwait(&seat_cats[s->type], &seat_lock,&end_wait);
+        if (rt != 0)
+        {
+            goto noseat;
+        }
     }
     printf(GREEN "%s has got a seat in zone %c\n"RESET, s->name, zones[s->seat_type]);
-    pthread_cancel(sleep_thread);
-    pthread_mutex_unlock(&exec_lock);
     pthread_mutex_unlock(&seat_lock);
 
-    // Setup thread for sleeping
-    sleep_arg->time = spec_time;
-    pthread_create(&sleep_thread, NULL, spec_wait, sleep_arg);
-
+    // Set endtime
+    end_wait.tv_sec = time(NULL) + spec_time;
     // Wait for scoreboard
     pthread_mutex_lock(&scoreboard_lock);
-    pthread_mutex_lock(&exec_lock);
     while (s->type == N || scoreboard[(s->type+1)%2] < s->goals)
     {
-        pthread_mutex_unlock(&exec_lock);
-        pthread_cond_wait(&scoreboard_cond[(s->type+1)%2], &scoreboard_lock);
-        pthread_mutex_lock(&exec_lock);
+        rt = pthread_cond_timedwait(&scoreboard_cond[(s->type+1)%2], &scoreboard_lock, &end_wait);
+        if (rt != 0)
+        {
+            goto endspec;
+        }
     }
     printf(YELLOW "%s is leaving due to bad performance of his team\n" RESET, s->name);
-    pthread_cancel(sleep_thread);
-    pthread_mutex_unlock(&exec_lock);
     pthread_mutex_unlock(&scoreboard_lock);
 
     // Release the seat
@@ -179,6 +140,24 @@ void *spec_sim(void* spec_arg)
 
     // Wait for friends at exit
     printf(CYAN "%s is waiting for their friends at the exit\n", s->name);
+    pthread_exit(NULL);
+
+noseat:;
+    printf(YELLOW"%s couldn't get a seat\n"RESET, s->name);
+    pthread_mutex_unlock(&seat_lock);
+    printf(CYAN"%s is waiting for their friends at the exit\n" RESET, s->name);
+    pthread_exit(NULL);
+endspec:;
+    printf(YELLOW "%s watched the match for %d seconds and is leaving\n"RESET, s->name, spec_time);
+    pthread_mutex_unlock(&scoreboard_lock);
+    pthread_mutex_lock(&seat_lock);
+    seats[s->seat_type]++;
+    signal_cat(s->seat_type);
+    pthread_mutex_unlock(&seat_lock);
+
+    // Wait for friends at exit
+    printf(CYAN "%s is waiting for their friends at the exit\n", s->name);
+    pthread_exit(NULL);
 }
 
 void *grp_sim(void* grp_arg)
@@ -188,5 +167,5 @@ void *grp_sim(void* grp_arg)
     {
         pthread_join(g->threads[i], NULL);
     }
-    printf(MAGENTA "Group %d is leaving for dinner\n");
+    printf(MAGENTA "Group %d is leaving for dinner\n", g->id);
 }

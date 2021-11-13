@@ -32,12 +32,4 @@ typedef struct grp {
     pthread_t *threads;
 } grp;
 
-typedef struct sleep_args {
-    int time;
-    spec *spec;
-    pthread_t caller;
-    pthread_mutex_t *exec_lock;
-} sleep_args;
-
-
 #endif // STD_STRUCTS_H
