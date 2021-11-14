@@ -61,10 +61,6 @@ found:;
     if (t->ta_timed == l->ta_times)
     {
         l->ta_avail_c--;
-        if (l->ta_avail_c == 0)
-        {
-            printf("Lab %s no longer has students available for TA ship\n", l->name);
-        }
     }
     // Allocate seats
     int seats_allocated = rand() % c->max_slot_c + 1;
@@ -159,5 +155,14 @@ void *student_sim(void *stu_arg)
     }
     // Student exits the simulation
     printf("Student %d either didn't get any of their preferred courses or has withdrawn from them and exited the simulation\n", stu_no);
+    pthread_exit(NULL);
+}
+
+void *lab_sim(void* lab_arg)
+{
+    lab *l = (lab *)lab_arg;
+    while(l->ta_avail_c)
+        ;
+    printf("Lab %s no longer has students available for TA ship\n",l->name);
     pthread_exit(NULL);
 }
