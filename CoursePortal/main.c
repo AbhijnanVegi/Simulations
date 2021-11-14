@@ -81,13 +81,6 @@ void start_sim()
         pthread_create(&lab_threads[i], NULL, lab_sim, &ilabs[i]);
     }
 
-    pthread_t lab_threads[lab_c];
-    // Start lab sims
-    for (int i = 0; i < lab_c; i++)
-    {
-        pthread_create(&lab_threads[i], NULL, lab_sim, &ilabs[i]);
-    }
-
     // Wait for all threads to finish
     for (int i = 0; i < student_c; i++)
     {
