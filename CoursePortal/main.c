@@ -74,6 +74,12 @@ void start_sim()
     {
         pthread_create(&course_threads[i], NULL, course_sim, &courses[i]);
     }
+    pthread_t lab_threads[lab_c];
+    // Start lab sims
+    for (int i = 0; i < lab_c; i++)
+    {
+        pthread_create(&lab_threads[i], NULL, lab_sim, &ilabs[i]);
+    }
 
     pthread_t lab_threads[lab_c];
     // Start lab sims
@@ -92,7 +98,7 @@ void start_sim()
     {
         pthread_cancel(course_threads[i]);
     }
-    for (int i = 0; i < lab_c; i++)
+    for(int i = 0; i < lab_c; i++)
     {
         pthread_cancel(lab_threads[i]);
     }

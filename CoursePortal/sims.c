@@ -158,11 +158,11 @@ void *student_sim(void *stu_arg)
     pthread_exit(NULL);
 }
 
-void *lab_sim(void* lab_arg)
+void* lab_sim(void* lab_arg)
 {
     lab *l = (lab *)lab_arg;
-    while(l->ta_avail_c)
+    while (l->ta_avail_c)
         ;
-    printf("Lab %s no longer has students available for TA ship\n",l->name);
+    printf("Lab %s has no students available for TA ship\n", l->name);
     pthread_exit(NULL);
 }
