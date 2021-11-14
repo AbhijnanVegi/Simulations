@@ -197,3 +197,12 @@ void* student_sim(void* stu_arg)
     printf("Student %d either didn't get any of their preferred courses or has withdrawn from them and exited the simulation\n", stu_no);
     pthread_exit(NULL);
 }
+
+void* lab_sim(void* lab_arg)
+{
+    lab *l = (lab *)lab_arg;
+    while (l->ta_avail_c)
+        ;
+    printf("Lab %s has no students available for TA ship\n", l->name);
+    pthread_exit(NULL);
+}
