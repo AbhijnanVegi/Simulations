@@ -17,7 +17,6 @@ typedef struct lab
     int ta_times;
     int ta_avail_c;
     ta *tas;
-    pthread_mutex_t lab_lock;
 } lab;
 
 typedef struct course {
@@ -26,11 +25,10 @@ typedef struct course {
     int max_slot_c;
     int lab_c;
     int *labs;
-    int stu_wait_c;
     int tut_wait_c;
     bool withdrawn;
-    pthread_mutex_t course_lock;
-    pthread_cond_t course_cond;
+    sem_t interested;
+    sem_t seats;
     pthread_mutex_t tut_lock;
     pthread_cond_t tut_cond;
 } course;
