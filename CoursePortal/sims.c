@@ -125,7 +125,6 @@ void* student_sim(void* stu_arg)
         // Wait for course to be available
         pthread_cond_wait(&c->course_cond, &c->course_lock);
         c->stu_wait_c--;
-        c->tut_wait_c++;
         // Check again for course withdrawn
         if (c->withdrawn)
         {
@@ -137,6 +136,7 @@ void* student_sim(void* stu_arg)
 
         // Wait for tutorial
         pthread_mutex_lock(&c->tut_lock);
+        c->tut_wait_c++;
         pthread_cond_wait(&c->tut_cond, &c->tut_lock);
         pthread_mutex_unlock(&c->tut_lock);
 
