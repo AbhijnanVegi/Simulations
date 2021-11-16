@@ -19,6 +19,8 @@ void init_lab(struct lab *lab, char*name, int ta_c, int ta_times)
     lab->ta_times = ta_times;
     lab->ta_avail_c = ta_c;
 
+    pthread_mutex_init(&lab->lab_lock, NULL);
+    
     lab->tas = malloc(sizeof(struct ta) * ta_c);
     for (int i = 0; i < ta_c; i++)
     {
@@ -40,10 +42,12 @@ void init_course(
     course->max_slot_c = max_slot_c;
     course->lab_c = lab_c;
     course->labs = labs;
+    course->stu_wait_c = 0;
+    course->tut_wait_c = 0;
     course->withdrawn = false;
 
-    sem_init(&course->interested, 0, 0);
-    sem_init(&course->seats, 0, 0);
+    pthread_mutex_init(&course->course_lock, NULL);
+    pthread_cond_init(&course->course_cond, NULL);
     pthread_mutex_init(&course->tut_lock, NULL);
     pthread_cond_init(&course->tut_cond, NULL);
 }
