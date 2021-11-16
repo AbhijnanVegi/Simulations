@@ -13,9 +13,11 @@
 #define WHITE "\033[0;37m"
 #define RESET "\033[0m"
 
+#define E -1
 #define H 0
 #define A 1
 #define N 2
+#define X 4
 
 typedef struct spec {
     char *name;

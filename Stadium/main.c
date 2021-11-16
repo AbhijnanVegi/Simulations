@@ -3,11 +3,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <semaphore.h>
 
 #include "structs.h"
 #include "sims.h"
 
-int seats[3] = {0,0,0};
+sem_t seats[3];
 int spec_time;
 
 extern int scoreboard[2];
@@ -53,7 +54,11 @@ int main()
     srand(time(0));
     setbuf(stdout, NULL);
     init_stad();
-    scanf("%d %d %d", &seats[H], &seats[A], &seats[N]);
+    int h, a, n;
+    scanf("%d %d %d", &h, &a, &n);
+    sem_init(&seats[H], 0, h);
+    sem_init(&seats[A], 0, a);
+    sem_init(&seats[N], 0, n);
     scanf("%d", &spec_time);
 
     int num_grps;
@@ -75,6 +80,7 @@ int main()
             scanf("%s %c %d %d %d", name, &type, &s->entry_time, &s->patience, &s->goals);
             s->name = strdup(name);
             s->type = types[type]; // H, A, or N
+            s->seat_type = -1;
             pthread_t spec_thread;
             pthread_create(&spec_thread, NULL, spec_sim, s);
             g->threads[j] = spec_thread;

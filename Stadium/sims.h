@@ -2,7 +2,6 @@
 #define STD_SIMS_H
 
 void init_stad(void);
-void signal_cat(int type);
 void *seat_wait(void *sleep_arg);
 void *spec_wait(void *sleep_arg);
 void *spec_sim(void *spec_arg);

@@ -3,50 +3,58 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 #include "structs.h"
-
-#define H_CAT 0
-#define A_CAT 1
-#define N_CAT 2
 
 
 int scoreboard[2] = {0};
 pthread_mutex_t scoreboard_lock;
 pthread_cond_t scoreboard_cond[2];
 
-extern int seats[3];
+extern sem_t seats[3];
 char zones[] = {'H', 'A', 'N'};
-pthread_mutex_t seat_lock;
-pthread_cond_t seat_cats[3];
 
 extern int spec_time;
 
-void init_stad(void)
+typedef struct seat 
+{
+    int type;
+    int *seat_type;
+    pthread_mutex_t *lock;
+    pthread_cond_t *cond;
+    struct timespec *end_wait;
+} seat;
+
+void
+init_stad(void)
 {
     pthread_mutex_init(&scoreboard_lock, NULL);
     pthread_cond_init(&scoreboard_cond[H], NULL);
     pthread_cond_init(&scoreboard_cond[A], NULL);
-
-    pthread_mutex_init(&seat_lock, NULL);
-    pthread_cond_init(&seat_cats[H_CAT], NULL);
-    pthread_cond_init(&seat_cats[A_CAT], NULL);
-    pthread_cond_init(&seat_cats[N_CAT], NULL);
 }
 
-void signal_cat(int type)
+void *seat_wait_sim(void* seat_arg)
 {
-    if (type == A)
+    seat* s = (seat*) seat_arg;
+    int rt;
+    rt = sem_timedwait(&seats[s->type], s->end_wait);
+    if (rt == 0)
     {
-        pthread_cond_signal(&seat_cats[A_CAT]);
+        pthread_mutex_lock(s->lock);
+        if (*s->seat_type != E)
+        {
+            sem_post(&seats[s->type]);
+            pthread_mutex_unlock(s->lock);
+        }
+        else
+        {
+            *(s->seat_type) = s->type;
+            pthread_cond_signal(s->cond);
+        }
+        pthread_mutex_unlock(s->lock);
     }
-    else
-    {
-        pthread_cond_signal(&seat_cats[H_CAT]);
-    }
-    pthread_cond_signal(&seat_cats[N_CAT]);
 }
-
 
 void *spec_sim(void* spec_arg)
 {
@@ -62,60 +70,50 @@ void *spec_sim(void* spec_arg)
     end_wait.tv_nsec = 0;
 
     // Wait for seat
-    pthread_mutex_lock(&seat_lock);
-    while (true)
-    {
+    pthread_mutex_t seat_lock;
+    pthread_mutex_init(&seat_lock, NULL);
+    pthread_cond_t seat_cond;
 
-        if (s->type == A && seats[A])
-        {
-            seats[A]--;
-            s->seat_type = A;
-            break;
-        }
-        else if (s->type == H)
-        {
-            if (seats[H])
-            {
-                seats[H]--;
-                s->seat_type = H;
-                break;
-            }
-            else if (seats[N])
-            {
-                seats[N]--;
-                s->seat_type = N;
-                break;
-            }
-        }
-        else
-        {
-            if (seats[N])
-            {
-                seats[N]--;
-                s->seat_type = N;
-                break;
-            }
-            else if (seats[H])
-            {
-                seats[H]--;
-                s->seat_type = H;
-                break;
-            }
-            else if (seats[A])
-            {
-                seats[A]--;
-                s->seat_type = A;
-                break;
-            }
-        }
-        rt = pthread_cond_timedwait(&seat_cats[s->type], &seat_lock,&end_wait);
-        if (rt != 0)
-        {
-            goto noseat;
-        }
+    pthread_mutex_lock(&seat_lock);
+    if (s->type == A || s->type == N)
+    {
+        seat* a = malloc(sizeof(seat));
+        a->type = A;
+        a->lock = &seat_lock;
+        a->cond = &seat_cond;
+        a->end_wait = &end_wait;
+        a->seat_type = &(s->seat_type);
+        pthread_t at;
+        rt = pthread_create(&at, NULL, seat_wait_sim, a);
     }
-    printf(GREEN "%s has got a seat in zone %c\n"RESET, s->name, zones[s->seat_type]);
+    if (s->type == H || s->type == N)
+    {
+        seat *h = malloc(sizeof(seat));
+        h->type = H;
+        h->lock = &seat_lock;
+        h->cond = &seat_cond; 
+        h->end_wait = &end_wait;
+        h->seat_type = &(s->seat_type);
+        seat *n = malloc(sizeof(seat));
+        n->type = N;
+        n->lock = &seat_lock;
+        n->cond = &seat_cond;
+        n->end_wait = &end_wait;
+        n->seat_type = &(s->seat_type);
+        pthread_t ht, nt;
+        rt = pthread_create(&ht, NULL, seat_wait_sim, h);
+        rt = pthread_create(&nt, NULL, seat_wait_sim, n);
+    }
+    rt = pthread_cond_timedwait(&seat_cond, &seat_lock, &end_wait);
+    if (s->seat_type == E)
+    {
+        s->seat_type = X;
+        pthread_mutex_unlock(&seat_lock);
+        goto noseat;
+    }
     pthread_mutex_unlock(&seat_lock);
+    
+    printf(GREEN "%s has got a seat in zone %c\n"RESET, s->name, zones[s->seat_type]);
 
     // Set endtime
     end_wait.tv_sec = time(NULL) + spec_time;
@@ -133,10 +131,7 @@ void *spec_sim(void* spec_arg)
     pthread_mutex_unlock(&scoreboard_lock);
 
     // Release the seat
-    pthread_mutex_lock(&seat_lock);
-    seats[s->seat_type]++;
-    signal_cat(s->seat_type);
-    pthread_mutex_unlock(&seat_lock);
+    sem_post(&seats[s->seat_type]);
 
     // Wait for friends at exit
     printf(CYAN "%s is waiting for their friends at the exit\n", s->name);
@@ -144,19 +139,17 @@ void *spec_sim(void* spec_arg)
 
 noseat:;
     printf(YELLOW"%s couldn't get a seat\n"RESET, s->name);
-    pthread_mutex_unlock(&seat_lock);
     printf(CYAN"%s is waiting for their friends at the exit\n" RESET, s->name);
     pthread_exit(NULL);
 endspec:;
     printf(YELLOW "%s watched the match for %d seconds and is leaving\n"RESET, s->name, spec_time);
     pthread_mutex_unlock(&scoreboard_lock);
-    pthread_mutex_lock(&seat_lock);
-    seats[s->seat_type]++;
-    signal_cat(s->seat_type);
-    pthread_mutex_unlock(&seat_lock);
+
+    // Release the seat
+    sem_post(&seats[s->seat_type]);
 
     // Wait for friends at exit
-    printf(CYAN "%s is waiting for their friends at the exit\n", s->name);
+    printf(CYAN "%s is waiting for their friends at the exit\n"RESET, s->name);
     pthread_exit(NULL);
 }
 
@@ -167,5 +160,7 @@ void *grp_sim(void* grp_arg)
     {
         pthread_join(g->threads[i], NULL);
     }
-    printf(MAGENTA "Group %d is leaving for dinner\n", g->id);
+    printf(MAGENTA "Group %d is leaving for dinner\n"RESET, g->id);
 }
+
+
