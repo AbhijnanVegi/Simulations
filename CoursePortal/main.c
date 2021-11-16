@@ -88,7 +88,6 @@ void start_sim()
 
 int main()
 {
-    setbuf(stdout, NULL);
     init_glob();
     printf("🚀 Starting simulation\n");
     start_sim();

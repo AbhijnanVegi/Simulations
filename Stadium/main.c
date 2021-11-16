@@ -52,7 +52,7 @@ void match_sim(void)
 int main()
 {
     srand(time(0));
-    setbuf(stdout, NULL);
+    printf("🚀 Starting simulation\n");
     init_stad();
     int h, a, n;
     scanf("%d %d %d", &h, &a, &n);
@@ -92,5 +92,5 @@ int main()
     {
         pthread_join(grp_threads[i], NULL);
     }
-    printf(RED "Simulation complete\n" RESET);
+    printf("🎊 Simulation complete\n");
 }
