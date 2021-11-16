@@ -5,6 +5,17 @@
 #include <semaphore.h>
 #include <stdbool.h>
 
+#define BLACK "\x1b[30m"
+#define RED "\x1b[31m"
+#define GREEN "\x1b[32m"
+#define YELLOW "\x1b[33m"
+#define BLUE "\x1b[34m"
+#define MAGENTA "\x1b[35m"
+#define CYAN "\x1b[36m"
+#define WHITE "\x1b[37m"
+#define CRIMSON "\x1b[38m"
+#define RESET "\x1b[0m"
+
 typedef struct ta {
     int ta_timed;
     pthread_mutex_t ta_lock;
@@ -17,6 +28,7 @@ typedef struct lab
     int ta_times;
     int ta_avail_c;
     ta *tas;
+    pthread_mutex_t lab_lock;
 } lab;
 
 typedef struct course {
@@ -25,10 +37,11 @@ typedef struct course {
     int max_slot_c;
     int lab_c;
     int *labs;
+    int stu_wait_c;
     int tut_wait_c;
     bool withdrawn;
-    sem_t interested;
-    sem_t seats;
+    pthread_mutex_t course_lock;
+    pthread_cond_t course_cond;
     pthread_mutex_t tut_lock;
     pthread_cond_t tut_cond;
 } course;
