@@ -21,33 +21,7 @@ int types[] = {
     ['N'] N
 };
 
-void match_sim(void)
-{
-    int chances;
-    scanf("%d", &chances);
-    int ctime = 0;
-    char gteam;
-    int gtime;
-    double gprob;
-    for (int i = 0; i < chances;i++)
-    {
-        scanf("\n%c %d %lf", &gteam, &gtime, &gprob);
-        sleep(gtime-ctime);
-        ctime = gtime;
-        if (rand() % 100 < gprob * 100)
-        {
-            pthread_mutex_lock(&scoreboard_lock);
-            scoreboard[types[gteam]]++;
-            pthread_cond_broadcast(&scoreboard_cond[types[gteam]]);
-            pthread_mutex_unlock(&scoreboard_lock);
-            printf("Team %c has scored their %d goal\n", gteam, scoreboard[types[gteam]]);
-        }
-        else
-        {
-            printf("Team %c has missed their %d goal\n", gteam, scoreboard[types[gteam]]+1);
-        }
-    }
-}
+
 
 int main()
 {

@@ -4,20 +4,33 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <assert.h>
 
 #include "structs.h"
 
+// Max spectators in stadium
+#define MAX_SPECS 128
 
 int scoreboard[2] = {0};
-pthread_mutex_t scoreboard_lock;
-pthread_cond_t scoreboard_cond[2];
 
 extern sem_t seats[3];
 char zones[] = {'H', 'A', 'N'};
 
-extern int spec_time;
+extern int spec_time; // Max spectating time
+extern int types[]; // Conversion from char to int
 
-typedef struct seat 
+// Struct for waiting for goals
+typedef struct waiter
+{
+    bool active;
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+} waiter;
+
+// List of structs with cv's to signal on each goal
+waiter waiters[2][MAX_SPECS];
+// Data required by threads waiting for seat
+typedef struct seat
 {
     int type;
     int *seat_type;
@@ -26,17 +39,23 @@ typedef struct seat
     struct timespec *end_wait;
 } seat;
 
-void
-init_stad(void)
+// Initialize stadium
+void init_stad(void)
 {
-    pthread_mutex_init(&scoreboard_lock, NULL);
-    pthread_cond_init(&scoreboard_cond[H], NULL);
-    pthread_cond_init(&scoreboard_cond[A], NULL);
+    for (int i = 0; i < 2; i++)
+    {
+        for (int j = 0; j < MAX_SPECS; j++)
+        {
+            waiters[i][j].active = false;
+            pthread_mutex_init(&waiters[i][j].lock, NULL);
+            pthread_cond_init(&waiters[i][j].cond, NULL);
+        }
+    }
 }
-
-void *seat_wait_sim(void* seat_arg)
+// Thread that waits for a seat
+void *seat_wait_sim(void *seat_arg)
 {
-    seat* s = (seat*) seat_arg;
+    seat *s = (seat *)seat_arg;
     int rt;
     rt = sem_timedwait(&seats[s->type], s->end_wait);
     if (rt == 0)
@@ -55,10 +74,10 @@ void *seat_wait_sim(void* seat_arg)
         pthread_mutex_unlock(s->lock);
     }
 }
-
-void *spec_sim(void* spec_arg)
+// Spectator thread
+void *spec_sim(void *spec_arg)
 {
-    spec* s = spec_arg;
+    spec *s = spec_arg;
     int rt;
 
     sleep(s->entry_time);
@@ -74,10 +93,11 @@ void *spec_sim(void* spec_arg)
     pthread_mutex_init(&seat_lock, NULL);
     pthread_cond_t seat_cond;
 
+    // Start threads waiting for seat
     pthread_mutex_lock(&seat_lock);
     if (s->type == A || s->type == N)
     {
-        seat* a = malloc(sizeof(seat));
+        seat *a = malloc(sizeof(seat));
         a->type = A;
         a->lock = &seat_lock;
         a->cond = &seat_cond;
@@ -91,7 +111,7 @@ void *spec_sim(void* spec_arg)
         seat *h = malloc(sizeof(seat));
         h->type = H;
         h->lock = &seat_lock;
-        h->cond = &seat_cond; 
+        h->cond = &seat_cond;
         h->end_wait = &end_wait;
         h->seat_type = &(s->seat_type);
         seat *n = malloc(sizeof(seat));
@@ -105,6 +125,7 @@ void *spec_sim(void* spec_arg)
         rt = pthread_create(&nt, NULL, seat_wait_sim, n);
     }
     rt = pthread_cond_timedwait(&seat_cond, &seat_lock, &end_wait);
+    // Check if any of the threads acquired a seat
     if (s->seat_type == E)
     {
         s->seat_type = X;
@@ -112,23 +133,52 @@ void *spec_sim(void* spec_arg)
         goto noseat;
     }
     pthread_mutex_unlock(&seat_lock);
-    
-    printf(GREEN "%s has got a seat in zone %c\n"RESET, s->name, zones[s->seat_type]);
+
+    printf(GREEN "%s has got a seat in zone %c\n" RESET, s->name, zones[s->seat_type]);
+
+    // Get lock and cond
+    if (s->type == N)
+    {
+        sleep(spec_time);
+        goto endspec;
+    }
+    pthread_mutex_t *scoreboard_lock = NULL;
+    pthread_cond_t *scoreboard_cond = NULL;
+
+    for (int i = 0; i < MAX_SPECS; i++)
+    {
+        if ((pthread_mutex_trylock(&waiters[s->type][i].lock) == 0) )
+        {
+            if (waiters[s->type][i].active == false)
+            {
+            waiters[s->type][i].active = true;
+            scoreboard_lock = &waiters[s->type][i].lock;
+            scoreboard_cond = &waiters[s->type][i].cond;
+            break;
+            }
+            else
+            {   
+                pthread_mutex_unlock(&waiters[s->type][i].lock);
+            }
+        }
+    }
+    // Check if there is a waiter
+    assert(scoreboard_lock != NULL);
 
     // Set endtime
     end_wait.tv_sec = time(NULL) + spec_time;
     // Wait for scoreboard
-    pthread_mutex_lock(&scoreboard_lock);
-    while (s->type == N || scoreboard[(s->type+1)%2] < s->goals)
+    while (scoreboard[(s->type + 1) % 2] < s->goals)
     {
-        rt = pthread_cond_timedwait(&scoreboard_cond[(s->type+1)%2], &scoreboard_lock, &end_wait);
+        rt = pthread_cond_timedwait(scoreboard_cond, scoreboard_lock, &end_wait);
         if (rt != 0)
         {
+            pthread_mutex_unlock(scoreboard_lock);
             goto endspec;
         }
     }
     printf(YELLOW "%s is leaving due to bad performance of his team\n" RESET, s->name);
-    pthread_mutex_unlock(&scoreboard_lock);
+    pthread_mutex_unlock(scoreboard_lock);
 
     // Release the seat
     sem_post(&seats[s->seat_type]);
@@ -138,29 +188,60 @@ void *spec_sim(void* spec_arg)
     pthread_exit(NULL);
 
 noseat:;
-    printf(YELLOW"%s couldn't get a seat\n"RESET, s->name);
-    printf(CYAN"%s is waiting for their friends at the exit\n" RESET, s->name);
+    printf(YELLOW "%s couldn't get a seat\n" RESET, s->name);
+    printf(CYAN "%s is waiting for their friends at the exit\n" RESET, s->name);
     pthread_exit(NULL);
 endspec:;
-    printf(YELLOW "%s watched the match for %d seconds and is leaving\n"RESET, s->name, spec_time);
-    pthread_mutex_unlock(&scoreboard_lock);
+    printf(YELLOW "%s watched the match for %d seconds and is leaving\n" RESET, s->name, spec_time);
 
     // Release the seat
     sem_post(&seats[s->seat_type]);
 
     // Wait for friends at exit
-    printf(CYAN "%s is waiting for their friends at the exit\n"RESET, s->name);
+    printf(CYAN "%s is waiting for their friends at the exit\n" RESET, s->name);
     pthread_exit(NULL);
 }
 
-void *grp_sim(void* grp_arg)
+void *grp_sim(void *grp_arg)
 {
-    grp* g = (grp*) grp_arg;
-    for (int i = 0; i < g->size;i++)
+    grp *g = (grp *)grp_arg;
+    for (int i = 0; i < g->size; i++)
     {
         pthread_join(g->threads[i], NULL);
     }
-    printf(MAGENTA "Group %d is leaving for dinner\n"RESET, g->id);
+    printf(MAGENTA "Group %d is leaving for dinner\n" RESET, g->id);
 }
 
-
+void match_sim(void)
+{
+    int chances;
+    scanf("%d", &chances);
+    int ctime = 0;
+    char gteam;
+    int gtime;
+    double gprob;
+    for (int i = 0; i < chances; i++)
+    {
+        scanf("\n%c %d %lf", &gteam, &gtime, &gprob);
+        sleep(gtime - ctime);
+        ctime = gtime;
+        if (rand() % 100 < gprob * 100)
+        {
+            scoreboard[types[gteam]]++;
+            printf("Team %c has scored their %d goal\n", gteam, scoreboard[types[gteam]]);
+            for (int i = 0; i < MAX_SPECS;i++)
+            {
+                pthread_mutex_lock(&waiters[types[gteam]][i].lock);
+                if (waiters[types[gteam]][i].active == true)
+                {
+                    pthread_cond_signal(&waiters[types[gteam]][i].cond);
+                }
+                pthread_mutex_unlock(&waiters[types[gteam]][i].lock);
+            }
+        }
+        else
+        {
+            printf("Team %c has missed their %d goal\n", gteam, scoreboard[types[gteam]] + 1);
+        }
+    }
+}
